@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title><%= title %></title>
+    <script src="/socket.io/socket.io.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css"
+    />
+    <link rel="stylesheet" href="/chat.css" />
+  </head>
+  <body>
+    <div class="connection-status" id="connectionStatus"></div>
+
+        <div class="chat-container">
+      <div class="chat-header">
+        <button class="new-chat-btn" onclick="clearChat()">
+          <span class="btn-icon">+</span>
+          <span class="btn-text">New chat</span>
+        </button>
+        <div class="header-title"><%= botName %></div>
+        <button class="home-btn" onclick="goHome()">
+          <span class="btn-icon">🏠</span>
+          <span class="btn-text">Home</span>
+        </button>
+      </div>
+
+      <div class="chat-messages" id="chatMessages">
+        <div class="welcome-message">
+          🤖 Hello! I'm your AI assistant. I can help you with questions,
+          explanations, code, and much more. How can I assist you today?
+        </div>
+      </div>
+      
+      <div class="chat-input">
+        <div class="input-container">
+          <textarea
+            id="messageInput"
+            placeholder="Send a message..."
+            rows="1"
+            autocomplete="off"
+          ></textarea>
+          <button id="sendButton">
+            <span>↗</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const socket = io();
+      const chatMessages = document.getElementById("chatMessages");
+      const messageInput = document.getElementById("messageInput");
+      const sendButton = document.getElementById("sendButton");
+      const connectionStatus = document.getElementById("connectionStatus");
+
+      // Auto-resize textarea
+      function autoResize() {
+        messageInput.style.height = "auto";
+        messageInput.style.height =
+          Math.min(messageInput.scrollHeight, 120) + "px";
+      }
+
+      // Auto-scroll to bottom
+      function scrollToBottom() {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      // Clear chat
+      function clearChat() {
+        chatMessages.innerHTML = "";
+        // Add the welcome message back
+        const welcomeDiv = document.createElement("div");
+        welcomeDiv.className = "welcome-message";
+        welcomeDiv.innerHTML = `
+          🤖 Hello! I'm your AI assistant. I can help you with questions,
+          explanations, code, and much more. How can I assist you today?
+        `;
+        chatMessages.appendChild(welcomeDiv);
+        
+        // Optionally emit a socket event to clear server-side chat history
+        socket.emit('clear_chat');
+      }
+
+      // Go to home page
+      function goHome() {
+        window.location.href = '/';
+      }
+
+      // Add message to chat
+      function addMessage(text, type, timestamp, html = null) {
+        const messageDiv = document.createElement("div");
+        messageDiv.className = `message ${type}`;
+
+        // Use formatted HTML if available, otherwise escape plain text
+        const messageContent = html || escapeHtml(text);
+
+        const avatarContent = type === "user" ? "U" : "AI";
+
+        messageDiv.innerHTML = `
+                <div class="message-content">
+                    <div class="message-avatar-container">
+                        <div class="message-avatar">${avatarContent}</div>
+                    </div>
+                    <div>
+                        <div class="message-text">${messageContent}</div>
+                        <div class="message-time">${timestamp}</div>
+                    </div>
+                </div>
+            `;
+
+        chatMessages.appendChild(messageDiv);
+        scrollToBottom();
+      }
+
+      // Escape HTML to prevent XSS
+      function escapeHtml(text) {
+        const map = {
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#039;",
+        };
+        return text.replace(/[&<>"']/g, function (m) {
+          return map[m];
+        });
+      }
+
+      // Show/hide typing indicator
+      function toggleTypingIndicator(show) {
+        let typingIndicator = document.querySelector(".typing-indicator");
+
+        if (show && !typingIndicator) {
+          typingIndicator = document.createElement("div");
+          typingIndicator.className = "typing-indicator show";
+          typingIndicator.innerHTML = `
+                    <div class="typing-content">
+                        <div class="typing-dots">
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                        </div>
+                    </div>
+                `;
+          chatMessages.appendChild(typingIndicator);
+          scrollToBottom();
+        } else if (!show && typingIndicator) {
+          typingIndicator.remove();
+        }
+      }
+
+      // Send message
+      function sendMessage() {
+        const message = messageInput.value.trim();
+        if (message) {
+          socket.emit("user_message", message);
+          messageInput.value = "";
+          autoResize();
+          sendButton.disabled = true;
+        }
+      }
+
+      // Event listeners
+      sendButton.addEventListener("click", sendMessage);
+
+      messageInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+
+      messageInput.addEventListener("input", () => {
+        autoResize();
+        sendButton.disabled = messageInput.value.trim() === "";
+      });
+
+      // Socket event listeners
+      socket.on("connect", () => {
+        connectionStatus.className = "connection-status connected";
+        console.log("Connected to server");
+      });
+
+      socket.on("disconnect", () => {
+        connectionStatus.className = "connection-status disconnected";
+        console.log("Disconnected from server");
+      });
+
+      socket.on("user_message_echo", (data) => {
+        addMessage(data.text, "user", data.timestamp);
+      });
+
+      socket.on("bot_typing", (isTyping) => {
+        if (isTyping) {
+          toggleTypingIndicator(true);
+        } else {
+          toggleTypingIndicator(false);
+        }
+      });
+
+      socket.on("bot_message", (data) => {
+        addMessage(data.text, "bot", data.timestamp, data.html);
+        sendButton.disabled = false;
+      });
+
+      // Initialize
+      sendButton.disabled = true;
+      messageInput.focus();
+      autoResize();
+
+      // Hide connection status after 3 seconds if connected
+      setTimeout(() => {
+        if (connectionStatus.classList.contains("connected")) {
+        //   connectionStatus.style.display = "none";
+        }
+      }, 3000);
+    </script>
+  </body>
+</html>
