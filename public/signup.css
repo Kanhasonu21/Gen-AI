@@ -111,6 +111,7 @@ body {
     box-shadow: 0 8px 32px 0 rgba(102, 126, 234, 0.18), 0 1.5px 6px 0 rgba(118, 75, 162, 0.10);
     border: 1px solid rgba(255, 255, 255, 0.2);
     width: 100%;
+    max-width: 450px;
     transform: translateY(20px);
     opacity: 0;
     transition: all 0.6s ease;
@@ -178,6 +179,51 @@ body {
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
+}
+
+/* Alert Styles */
+.alert {
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.alert-success {
+    background: rgba(67, 118, 108, 0.1);
+    color: #43766C;
+    border: 1px solid rgba(67, 118, 108, 0.3);
+}
+
+.alert-error {
+    background: rgba(255, 71, 87, 0.1);
+    color: #ff4757;
+    border: 1px solid rgba(255, 71, 87, 0.3);
+}
+
+.alert-info {
+    background: rgba(103, 128, 159, 0.1);
+    color: #67809f;
+    border: 1px solid rgba(103, 128, 159, 0.3);
+}
+
+.alert-close {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 1rem;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.alert-close:hover {
+    opacity: 1;
 }
 
 .form-row {
@@ -491,12 +537,78 @@ body {
 }
 
 /* Responsive Design */
+@media (max-width: 1024px) {
+    /* iPad and smaller tablets */
+    .signup-container {
+        padding: 1.5rem;
+    }
+    
+    .signup-card {
+        max-width: 500px;
+        padding: 2rem 1.5rem;
+    }
+    
+    .social-login {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .social-btn {
+        width: 100%;
+    }
+    
+    .form-row {
+        gap: 1rem;
+    }
+}
+
 @media (max-width: 768px) {
+    /* iPad Portrait and smaller tablets */
+    .signup-container {
+        padding: 1rem;
+        gap: 1.5rem;
+    }
+    
+    .signup-card {
+        max-width: 100%;
+        padding: 1.5rem;
+        border-radius: 15px;
+        margin: 0 1rem;
+    }
+    
+    .logo-icon {
+        width: 70px;
+        height: 70px;
+        font-size: 2.5rem;
+    }
+    
+    .logo h1 {
+        font-size: 1.6rem;
+    }
+    
+    .subtitle {
+        font-size: 0.9rem;
+    }
+    
     .form-row {
         grid-template-columns: 1fr;
-        gap: 1.25rem;
+        gap: 1.5rem;
     }
-
+    
+    .form-input {
+        padding: 0.875rem 0.5rem 0.875rem 0;
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+    
+    .input-wrapper {
+        border-radius: 10px;
+    }
+    
+    .signup-btn {
+        padding: 1rem 1.5rem;
+        border-radius: 10px;
+    }
+    
     .social-signup {
         flex-direction: column;
         gap: 0.75rem;
@@ -504,31 +616,190 @@ body {
 
     .social-btn {
         width: 100%;
+        padding: 0.75rem 1rem;
+        border-radius: 10px;
     }
 }
 
 @media (max-width: 480px) {
+    /* Mobile phones */
+    body {
+        padding: 0.5rem;
+    }
+    
     .signup-container {
-        padding: 1rem;
-        max-width: 100%;
+        padding: 0.5rem;
+        gap: 1rem;
+        min-height: 100vh;
+        justify-content: center;
     }
     
     .signup-card {
-        padding: 1.5rem;
-        border-radius: 15px;
+        padding: 1.5rem 1rem;
+        border-radius: 12px;
+        margin: 0;
+        min-width: 280px;
+    }
+    
+    .signup-header {
+        margin-bottom: 1.25rem;
     }
     
     .logo-icon {
         width: 60px;
         height: 60px;
         font-size: 2rem;
+        border-radius: 15px;
     }
     
     .logo h1 {
+        font-size: 1.4rem;
+    }
+    
+    .subtitle {
+        font-size: 0.85rem;
+        line-height: 1.4;
+    }
+    
+    .signup-form {
+        gap: 1.25rem;
+    }
+    
+    .form-group {
+        gap: 0.4rem;
+    }
+    
+    .form-label {
+        font-size: 0.85rem;
+    }
+    
+    .form-row {
+        gap: 1.25rem;
+    }
+    
+    .input-wrapper {
+        border-radius: 8px;
+        min-height: 48px; /* Better touch target */
+    }
+    
+    .form-input {
+        padding: 0.75rem 0.4rem 0.75rem 0;
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+    
+    .input-icon {
+        padding: 0 0.75rem;
+        font-size: 1rem;
+    }
+    
+    .toggle-password {
+        padding: 0 0.75rem;
+        font-size: 1rem;
+        min-width: 44px; /* Better touch target */
+        min-height: 44px;
+    }
+    
+    .signup-btn {
+        padding: 0.875rem 1rem;
+        font-size: 0.95rem;
+        border-radius: 8px;
+        min-height: 48px;
+    }
+    
+    .social-btn {
+        padding: 0.75rem 0.875rem;
+        font-size: 0.85rem;
+        border-radius: 8px;
+        min-height: 48px;
+    }
+    
+    .social-icon img {
+        width: 18px;
+        height: 18px;
+    }
+    
+    .checkmark {
+        width: 16px;
+        height: 16px;
+        min-width: 16px;
+    }
+    
+    .checkbox-text {
+        font-size: 0.85rem;
+    }
+    
+    .login-link {
+        padding-top: 1.25rem;
+    }
+    
+    .login-link p {
+        font-size: 0.85rem;
+    }
+    
+    .password-strength {
+        font-size: 0.75rem;
+    }
+    
+    .strength-bar {
+        height: 3px;
+    }
+}
+
+@media (max-width: 360px) {
+    /* Extra small mobile phones */
+    .signup-card {
+        padding: 1rem 0.75rem;
+        min-width: 260px;
+    }
+    
+    .signup-form {
+        gap: 1rem;
+    }
+    
+    .form-input {
+        font-size: 14px;
+    }
+    
+    .social-btn {
+        font-size: 0.8rem;
+        padding: 0.625rem 0.75rem;
+    }
+}
+
+/* Landscape orientation for mobile */
+@media (max-height: 600px) and (orientation: landscape) {
+    .signup-container {
+        padding: 0.5rem;
+        gap: 0.5rem;
+    }
+    
+    .signup-card {
+        padding: 1rem;
+    }
+    
+    .signup-header {
+        margin-bottom: 1rem;
+    }
+    
+    .logo-icon {
+        width: 50px;
+        height: 50px;
         font-size: 1.5rem;
     }
-
-    .checkbox-text {
+    
+    .logo h1 {
+        font-size: 1.2rem;
+    }
+    
+    .subtitle {
         font-size: 0.8rem;
+    }
+    
+    .signup-form {
+        gap: 0.875rem;
+    }
+    
+    .form-row {
+        gap: 0.875rem;
     }
 }

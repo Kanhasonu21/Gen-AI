@@ -1,17 +1,26 @@
 import mongoose from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/genai-learn';
-
-const connectDB = async () => {
+const connectDB = async (mongoUri = null) => {
     try {
-        await mongoose.connect(MONGODB_URI, {
+        // Use provided URI or environment variable
+        const connectionString = mongoUri || process.env.MONGODB_URI;
+        
+        if (!connectionString) {
+            throw new Error('MONGODB_URI is not defined in environment variables');
+        }
+
+        await mongoose.connect(connectionString, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
         });
-        console.log('MongoDB connected');
+
+        console.log(`📊 MongoDB connected successfully`);
+        console.log(`🔗 Database: ${connectionString.includes('mongodb+srv') ? 'MongoDB Atlas' : 'Local MongoDB'}`);
+        
     } catch (error) {
-        console.error('MongoDB connection error:', error);
-        process.exit(1);
+        console.error('❌ MongoDB connection error:', error);
+        console.error('🔧 Connection string being used:', connectionString ? connectionString.substring(0, 30) + '...' : 'undefined');
+        throw error; // Let the calling function handle the exit
     }
 };
 

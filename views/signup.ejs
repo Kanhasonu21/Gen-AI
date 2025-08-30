@@ -6,6 +6,8 @@
     <title><%= title || 'Sign Up - AI Assistant' %></title>
     <link rel="stylesheet" href="/signup.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="/utils/auth.js"></script>
+    <script src="/utils/emailDisplay.js"></script>
 </head>
 <body>
     <div class="signup-container">
@@ -205,14 +207,14 @@
         }
 
         // Form validation and submission
-        document.getElementById('signupForm').addEventListener('submit', function(e) {
+        document.getElementById('signupForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirmPassword').value;
             
             if (password !== confirmPassword) {
-                alert('Passwords do not match!');
+                showAlert('Passwords do not match!', 'error');
                 return;
             }
             
@@ -225,12 +227,79 @@
             btnText.style.opacity = '0';
             btnLoader.style.display = 'block';
             
-            // Simulate signup process (replace with actual signup logic)
-            setTimeout(() => {
-                // For demo - redirect to login
-                window.location.href = '/login';
-            }, 2000);
+            try {
+                // Get form data
+                const formData = new FormData(this);
+                const data = Object.fromEntries(formData);
+                
+                // Submit to server
+                const response = await fetch('/auth/signup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Store JWT token in localStorage using AuthUtils
+                    if (result.token) {
+                        AuthUtils.setAuthData(result.token, result.user);
+                        
+                        showAlert('Account created successfully! Redirecting to chat...', 'success');
+                        setTimeout(() => {
+                            window.location.href = '/chat';
+                        }, 2000);
+                    } else {
+                        showAlert('Account created successfully! Redirecting to login...', 'success');
+                        setTimeout(() => {
+                            window.location.href = '/login';
+                        }, 2000);
+                    }
+                } else {
+                    showAlert(result.message || 'Signup failed. Please try again.', 'error');
+                }
+                
+            } catch (error) {
+                console.error('Signup error:', error);
+                showAlert('Network error. Please try again.', 'error');
+            } finally {
+                // Reset loading state
+                signupBtn.classList.remove('loading');
+                btnText.style.opacity = '1';
+                btnLoader.style.display = 'none';
+            }
         });
+
+        // Alert function for user feedback
+        function showAlert(message, type = 'info') {
+            // Remove existing alerts
+            const existingAlert = document.querySelector('.alert');
+            if (existingAlert) {
+                existingAlert.remove();
+            }
+            
+            // Create alert element
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.innerHTML = `
+                <span class="alert-message">${message}</span>
+                <button class="alert-close" onclick="this.parentElement.remove()">×</button>
+            `;
+            
+            // Insert at top of form
+            const form = document.getElementById('signupForm');
+            form.insertBefore(alert, form.firstChild);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                if (alert.parentElement) {
+                    alert.remove();
+                }
+            }, 5000);
+        }
 
         // Input focus animations and validation
         document.querySelectorAll('.form-input').forEach(input => {

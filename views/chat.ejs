@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title><%= title %></title>
+    <script src="/utils/auth.js"></script>
+    <script src="/utils/emailDisplay.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <link
       rel="stylesheet"
@@ -14,16 +16,16 @@
   <body>
     <div class="connection-status" id="connectionStatus"></div>
 
-        <div class="chat-container">
+    <div class="chat-container">
       <div class="chat-header">
-        <button class="new-chat-btn" onclick="clearChat()">
+        <!-- <button class="new-chat-btn" onclick="clearChat()">
           <span class="btn-icon">+</span>
           <span class="btn-text">New chat</span>
-        </button>
+        </button> -->
         <div class="header-title"><%= botName %></div>
-        <button class="home-btn" onclick="goHome()">
-          <span class="btn-icon">🏠</span>
-          <span class="btn-text">Home</span>
+        <button class="home-btn" onclick="AuthUtils.logout()">
+          <span class="btn-icon">⏻</span>
+          <span class="btn-text"> Logout</span>
         </button>
       </div>
 
@@ -33,7 +35,7 @@
           explanations, code, and much more. How can I assist you today?
         </div>
       </div>
-      
+
       <div class="chat-input">
         <div class="input-container">
           <textarea
@@ -50,56 +52,120 @@
     </div>
 
     <script>
-      const socket = io();
-      const chatMessages = document.getElementById("chatMessages");
-      const messageInput = document.getElementById("messageInput");
-      const sendButton = document.getElementById("sendButton");
-      const connectionStatus = document.getElementById("connectionStatus");
+      // Check authentication before initializing chat
+      document.addEventListener("DOMContentLoaded", function () {
+        // Require authentication to access chat
+        if (!AuthUtils.requireAuth()) {
+          return; // User will be redirected to login
+        }
 
-      // Auto-resize textarea
-      function autoResize() {
-        messageInput.style.height = "auto";
-        messageInput.style.height =
-          Math.min(messageInput.scrollHeight, 120) + "px";
+        // Validate token with server
+        AuthUtils.validateToken()
+          .then((isValid) => {
+            if (!isValid) {
+              window.location.href = "/login?error=session-expired";
+              return;
+            }
+
+            // User is authenticated, initialize chat
+            initializeChat();
+          })
+          .catch((error) => {
+            console.error("Authentication error:", error);
+            window.location.href = "/login?error=auth-failed";
+          });
+      });
+
+      // Initialize chat functionality
+      function initializeChat() {
+        const socket = io({
+          auth: {
+            token: AuthUtils.getToken(), // Send token with socket connection
+          },
+        });
+
+        // Add user info to chat header
+        const user = AuthUtils.getUser();
+        if (user) {
+          updateChatHeader(user);
+        }
+
+        // Continue with existing chat initialization
+        initializeChatFeatures(socket);
       }
 
-      // Auto-scroll to bottom
-      function scrollToBottom() {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+      // Update chat header with user info
+      function updateChatHeader(user) {
+        console.log("User info:", user);
+        const headerTitle = document.querySelector(".header-title");
+        const originalTitle = headerTitle.textContent;
+        const maskedEmail = EmailUtils.formatForContext(user.email, "header");
+
+        headerTitle.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span>${originalTitle}</span>
+            <div style="font-size: 12px; opacity: 0.7;">
+              Welcome, ${user.firstName}! (${maskedEmail})
+            </div>
+          </div>
+        `;
       }
 
-      // Clear chat
-      function clearChat() {
-        chatMessages.innerHTML = "";
-        // Add the welcome message back
-        const welcomeDiv = document.createElement("div");
-        welcomeDiv.className = "welcome-message";
-        welcomeDiv.innerHTML = `
+      // Initialize chat features (moved from main scope)
+      function initializeChatFeatures(socket) {
+        const chatMessages = document.getElementById("chatMessages");
+        const messageInput = document.getElementById("messageInput");
+        const sendButton = document.getElementById("sendButton");
+        const connectionStatus = document.getElementById("connectionStatus");
+
+        // Auto-resize textarea
+        function autoResize() {
+          messageInput.style.height = "auto";
+          messageInput.style.height =
+            Math.min(messageInput.scrollHeight, 120) + "px";
+        }
+
+        // Auto-scroll to bottom
+        function scrollToBottom() {
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Clear chat
+        function clearChat() {
+          chatMessages.innerHTML = "";
+          // Add the welcome message back
+          const welcomeDiv = document.createElement("div");
+          welcomeDiv.className = "welcome-message";
+          welcomeDiv.innerHTML = `
           🤖 Hello! I'm your AI assistant. I can help you with questions,
           explanations, code, and much more. How can I assist you today?
         `;
-        chatMessages.appendChild(welcomeDiv);
-        
-        // Optionally emit a socket event to clear server-side chat history
-        socket.emit('clear_chat');
-      }
+          chatMessages.appendChild(welcomeDiv);
 
-      // Go to home page
-      function goHome() {
-        window.location.href = '/';
-      }
+          // Optionally emit a socket event to clear server-side chat history
+          socket.emit("clear_chat");
+        }
 
-      // Add message to chat
-      function addMessage(text, type, timestamp, html = null) {
-        const messageDiv = document.createElement("div");
-        messageDiv.className = `message ${type}`;
+        // Go to home page
+        function goHome() {
+          window.location.href = "/";
+        }
 
-        // Use formatted HTML if available, otherwise escape plain text
-        const messageContent = html || escapeHtml(text);
+        // Add message to chat
+        function addMessage(text, type, timestamp, html = null) {
+          const messageDiv = document.createElement("div");
+          messageDiv.className = `message ${type}`;
 
-        const avatarContent = type === "user" ? "U" : "AI";
+          // Use formatted HTML if available, otherwise escape plain text
+          const messageContent = html || escapeHtml(text);
+          const user = AuthUtils.getUser();
+          const avatarIntial =
+            user && user.firstName
+              ? user.firstName.charAt(0).toUpperCase()
+              : "U";
+          const avatarContent = type === "user" ? avatarIntial : "AI";
 
-        messageDiv.innerHTML = `
+          messageDiv.innerHTML = `
                 <div class="message-content">
                     <div class="message-avatar-container">
                         <div class="message-avatar">${avatarContent}</div>
@@ -111,32 +177,32 @@
                 </div>
             `;
 
-        chatMessages.appendChild(messageDiv);
-        scrollToBottom();
-      }
+          chatMessages.appendChild(messageDiv);
+          scrollToBottom();
+        }
 
-      // Escape HTML to prevent XSS
-      function escapeHtml(text) {
-        const map = {
-          "&": "&amp;",
-          "<": "&lt;",
-          ">": "&gt;",
-          '"': "&quot;",
-          "'": "&#039;",
-        };
-        return text.replace(/[&<>"']/g, function (m) {
-          return map[m];
-        });
-      }
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+          const map = {
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#039;",
+          };
+          return text.replace(/[&<>"']/g, function (m) {
+            return map[m];
+          });
+        }
 
-      // Show/hide typing indicator
-      function toggleTypingIndicator(show) {
-        let typingIndicator = document.querySelector(".typing-indicator");
+        // Show/hide typing indicator
+        function toggleTypingIndicator(show) {
+          let typingIndicator = document.querySelector(".typing-indicator");
 
-        if (show && !typingIndicator) {
-          typingIndicator = document.createElement("div");
-          typingIndicator.className = "typing-indicator show";
-          typingIndicator.innerHTML = `
+          if (show && !typingIndicator) {
+            typingIndicator = document.createElement("div");
+            typingIndicator.className = "typing-indicator show";
+            typingIndicator.innerHTML = `
                     <div class="typing-content">
                         <div class="typing-dots">
                             <span class="dot"></span>
@@ -145,78 +211,95 @@
                         </div>
                     </div>
                 `;
-          chatMessages.appendChild(typingIndicator);
-          scrollToBottom();
-        } else if (!show && typingIndicator) {
-          typingIndicator.remove();
+            chatMessages.appendChild(typingIndicator);
+            scrollToBottom();
+          } else if (!show && typingIndicator) {
+            typingIndicator.remove();
+          }
         }
-      }
 
-      // Send message
-      function sendMessage() {
-        const message = messageInput.value.trim();
-        if (message) {
-          socket.emit("user_message", message);
-          messageInput.value = "";
+        // Send message
+        function sendMessage() {
+          const message = messageInput.value.trim();
+          if (message) {
+            socket.emit("user_message", message);
+            messageInput.value = "";
+            autoResize();
+            sendButton.disabled = true;
+          }
+        }
+
+        // Event listeners
+        sendButton.addEventListener("click", sendMessage);
+
+        messageInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+          }
+        });
+
+        messageInput.addEventListener("input", () => {
           autoResize();
-          sendButton.disabled = true;
-        }
-      }
+          sendButton.disabled = messageInput.value.trim() === "";
+        });
 
-      // Event listeners
-      sendButton.addEventListener("click", sendMessage);
+        // Socket event listeners
+        socket.on("connect", () => {
+          connectionStatus.className = "connection-status connected";
+        });
 
-      messageInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          sendMessage();
-        }
-      });
+        socket.on("disconnect", () => {
+          connectionStatus.className = "connection-status disconnected";
+        });
 
-      messageInput.addEventListener("input", () => {
+        socket.on("user_message_echo", (data) => {
+          addMessage(data.text, "user", data.timestamp);
+        });
+
+        socket.on("bot_typing", (isTyping) => {
+          if (isTyping) {
+            toggleTypingIndicator(true);
+          } else {
+            toggleTypingIndicator(false);
+          }
+        });
+
+        socket.on("bot_message", (data) => {
+          addMessage(data.text, "bot", data.timestamp, data.html);
+          sendButton.disabled = false;
+        });
+
+        // Handle authentication errors
+        socket.on("auth_error", (data) => {
+          console.error("Socket authentication error:", data.message);
+          AuthUtils.clearAuthData();
+          window.location.href = "/login?error=session-expired";
+        });
+
+        socket.on("connect_error", (error) => {
+          if (error.message.includes("Authentication error")) {
+            console.error(
+              "Socket connection authentication error:",
+              error.message
+            );
+            AuthUtils.clearAuthData();
+            window.location.href = "/login?error=auth-failed";
+          }
+        });
+
+        // Initialize
+        sendButton.disabled = true;
+        messageInput.focus();
         autoResize();
-        sendButton.disabled = messageInput.value.trim() === "";
-      });
 
-      // Socket event listeners
-      socket.on("connect", () => {
-        connectionStatus.className = "connection-status connected";
-        console.log("Connected to server");
-      });
-
-      socket.on("disconnect", () => {
-        connectionStatus.className = "connection-status disconnected";
-        console.log("Disconnected from server");
-      });
-
-      socket.on("user_message_echo", (data) => {
-        addMessage(data.text, "user", data.timestamp);
-      });
-
-      socket.on("bot_typing", (isTyping) => {
-        if (isTyping) {
-          toggleTypingIndicator(true);
-        } else {
-          toggleTypingIndicator(false);
-        }
-      });
-
-      socket.on("bot_message", (data) => {
-        addMessage(data.text, "bot", data.timestamp, data.html);
-        sendButton.disabled = false;
-      });
-
-      // Initialize
-      sendButton.disabled = true;
-      messageInput.focus();
-      autoResize();
-
-      // Hide connection status after 3 seconds if connected
-      setTimeout(() => {
-        if (connectionStatus.classList.contains("connected")) {
-        //   connectionStatus.style.display = "none";
-        }
-      }, 3000);
+        // Hide connection status after 3 seconds if connected
+        setTimeout(() => {
+          if (connectionStatus.classList.contains("connected")) {
+            //   connectionStatus.style.display = "none";
+          }
+        }, 3000);
+      } // End of initializeChatFeatures function
     </script>
   </body>
 </html>

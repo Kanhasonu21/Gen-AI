@@ -13,7 +13,6 @@ const webChatBot = async (userMessage,chat_history) => {
         chat_history.push(result.content)
         const botResponse = result.content;
 
-        console.log(`Bot: ${botResponse}`);
 
         return botResponse;
 
@@ -40,7 +39,6 @@ const terminalChatBot = async () => {
         });
     };
 
-    console.log("Chatbot started! Type 'exit' to quit.\n");
 
     while (true) {
         try {

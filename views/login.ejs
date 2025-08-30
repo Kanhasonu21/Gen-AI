@@ -6,6 +6,62 @@
     <title><%= title || 'Login - AI Assistant' %></title>
     <link rel="stylesheet" href="/login.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="/utils/auth.js"></script>
+    <script src="/utils/emailDisplay.js"></script>
+    <style>
+        .input-wrapper.error {
+            border-color: #dc2626 !important;
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1) !important;
+        }
+        
+        .input-wrapper.warning {
+            border-color: #f59e0b !important;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1) !important;
+        }
+        
+        .input-wrapper.error .form-input {
+            border-color: #dc2626 !important;
+        }
+        
+        .input-wrapper.warning .form-input {
+            border-color: #f59e0b !important;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes slideOut {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+        }
+        
+        .error-message, .success-message {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .login-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        
+        .field-error {
+            animation: slideIn 0.2s ease-out;
+        }
+    </style>
 </head>
 <body>
     <div class="login-container">
@@ -121,36 +177,445 @@
             const loginBtn = document.getElementById('loginBtn');
             const btnText = loginBtn.querySelector('.btn-text');
             const btnLoader = document.getElementById('btnLoader');
+            const form = e.target;
+            
+            // Clear any existing errors
+            clearErrors();
+            
+            // Validate form before submission
+            if (!validateForm()) {
+                return;
+            }
             
             // Show loading state
             loginBtn.classList.add('loading');
             btnText.style.opacity = '0';
             btnLoader.style.display = 'block';
+            loginBtn.disabled = true;
             
-            // Simulate login process (replace with actual login logic)
-            setTimeout(() => {
-                // For demo - redirect to chat
-                window.location.href = '/chat';
-            }, 2000);
+            // Get form data
+            const formData = new FormData(form);
+            const email = formData.get('email').trim();
+            const password = formData.get('password');
+            
+            // Send login request to server
+            fetch('/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email, password })
+            })
+            .then(response => {
+                // Check if response is ok
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Store JWT token in localStorage using AuthUtils
+                    try {
+                        AuthUtils.setAuthData(data.token, data.user);
+                        
+                        // Show success message briefly before redirect
+                        showSuccess('Login successful! Redirecting...');
+                        
+                        // Login successful - redirect to chat after brief delay
+                        setTimeout(() => {
+                            window.location.href = '/chat';
+                        }, 1000);
+                    } catch (storageError) {
+                        console.error('Storage error:', storageError);
+                        showError('Login successful but failed to save session. Please try logging in again.');
+                        resetLoginButton();
+                    }
+                } else {
+                    // Login failed - show specific error message
+                    const errorMessage = getErrorMessage(data.message, data.errors);
+                    showError(errorMessage);
+                    resetLoginButton();
+                    
+                    // Focus on the appropriate field based on error
+                    focusErrorField(data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Login error:', error);
+                
+                // Handle different types of errors
+                let errorMessage = 'An unexpected error occurred. Please try again.';
+                
+                if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                    errorMessage = 'Network error. Please check your connection and try again.';
+                } else if (error.message.includes('HTTP error')) {
+                    errorMessage = 'Server error. Please try again later.';
+                } else if (error.message.includes('JSON')) {
+                    errorMessage = 'Invalid response from server. Please try again.';
+                }
+                
+                showError(errorMessage);
+                resetLoginButton();
+            });
         });
+        
+        // Function to reset login button state
+        function resetLoginButton() {
+            const loginBtn = document.getElementById('loginBtn');
+            const btnText = loginBtn.querySelector('.btn-text');
+            const btnLoader = document.getElementById('btnLoader');
+            
+            loginBtn.classList.remove('loading');
+            btnText.style.opacity = '1';
+            btnLoader.style.display = 'none';
+            loginBtn.disabled = false;
+        }
+        
+        // Function to validate form
+        function validateForm() {
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            let isValid = true;
+            
+            // Clear previous field errors
+            clearFieldErrors();
+            
+            // Email validation
+            if (!email) {
+                showFieldError('email', 'Email is required');
+                isValid = false;
+            } else if (!isValidEmail(email)) {
+                showFieldError('email', 'Please enter a valid email address');
+                isValid = false;
+            }
+            
+            // Password validation
+            if (!password) {
+                showFieldError('password', 'Password is required');
+                isValid = false;
+            } else if (password.length < 8) {
+                showFieldError('password', 'Password must be at least 8 characters long');
+                isValid = false;
+            }
+            
+            return isValid;
+        }
+        
+        // Function to validate email format
+        function isValidEmail(email) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return emailRegex.test(email);
+        }
+        
+        // Function to show field-specific errors
+        function showFieldError(fieldId, message) {
+            const field = document.getElementById(fieldId);
+            const wrapper = field.closest('.input-wrapper');
+            
+            // Add error class to wrapper
+            wrapper.classList.add('error');
+            
+            // Create error message if it doesn't exist
+            let errorMsg = wrapper.parentNode.querySelector('.field-error');
+            if (!errorMsg) {
+                errorMsg = document.createElement('div');
+                errorMsg.className = 'field-error';
+                errorMsg.style.cssText = `
+                    color: #dc2626;
+                    font-size: 12px;
+                    margin-top: 4px;
+                    margin-left: 12px;
+                `;
+                wrapper.parentNode.appendChild(errorMsg);
+            }
+            
+            errorMsg.textContent = message;
+        }
+        
+        // Function to clear field errors
+        function clearFieldErrors() {
+            document.querySelectorAll('.input-wrapper').forEach(wrapper => {
+                wrapper.classList.remove('error');
+            });
+            document.querySelectorAll('.field-error').forEach(error => {
+                error.remove();
+            });
+        }
+        
+        // Function to clear all errors
+        function clearErrors() {
+            clearFieldErrors();
+            const existingError = document.querySelector('.error-message');
+            if (existingError) {
+                existingError.remove();
+            }
+            const existingSuccess = document.querySelector('.success-message');
+            if (existingSuccess) {
+                existingSuccess.remove();
+            }
+        }
+        
+        // Function to get user-friendly error message
+        function getErrorMessage(message, errors) {
+            if (errors && errors.length > 0) {
+                return errors[0];
+            }
+            
+            // Map common error messages to user-friendly ones
+            const errorMap = {
+                'Invalid email or password': 'Invalid email or password. Please check your credentials and try again.',
+                'Email and password are required': 'Please fill in all required fields.',
+                'Please enter a valid email address': 'Please enter a valid email address.',
+                'Account is deactivated': 'Your account has been deactivated. Please contact support.',
+                'User not found': 'No account found with this email address.',
+                'Internal server error': 'Something went wrong on our end. Please try again later.',
+                'Authentication processing error': 'Authentication error. Please try again.',
+                'Token is invalid or has been revoked': 'Your session is invalid. Please log in again.'
+            };
+            
+            return errorMap[message] || message || 'An unexpected error occurred. Please try again.';
+        }
+        
+        // Function to focus on error field
+        function focusErrorField(errorMessage) {
+            if (errorMessage && errorMessage.toLowerCase().includes('email')) {
+                document.getElementById('email').focus();
+            } else if (errorMessage && errorMessage.toLowerCase().includes('password')) {
+                document.getElementById('password').focus();
+            }
+        }
+        
+        // Function to show success messages
+        function showSuccess(message) {
+            // Remove any existing messages
+            clearErrors();
+            
+            // Create and show success message
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success-message';
+            successDiv.textContent = message;
+            successDiv.style.cssText = `
+                background-color: #d1fae5;
+                border: 1px solid #a7f3d0;
+                color: #065f46;
+                padding: 12px;
+                border-radius: 8px;
+                margin-bottom: 16px;
+                font-size: 14px;
+                text-align: center;
+                animation: slideIn 0.3s ease-out;
+            `;
+            
+            // Insert success message before the form
+            const form = document.getElementById('loginForm');
+            form.parentNode.insertBefore(successDiv, form);
+        }
+        
+        // Function to show error messages
+        function showError(message) {
+            // Remove any existing error messages
+            clearErrors();
+            
+            // Create and show new error message
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            errorDiv.style.cssText = `
+                background-color: #fee2e2;
+                border: 1px solid #fecaca;
+                color: #dc2626;
+                padding: 12px;
+                border-radius: 8px;
+                margin-bottom: 16px;
+                font-size: 14px;
+                text-align: center;
+                animation: slideIn 0.3s ease-out;
+                position: relative;
+            `;
+            
+            // Add close button
+            const closeBtn = document.createElement('button');
+            closeBtn.innerHTML = '&times;';
+            closeBtn.style.cssText = `
+                position: absolute;
+                top: 8px;
+                right: 12px;
+                background: none;
+                border: none;
+                color: #dc2626;
+                font-size: 18px;
+                cursor: pointer;
+                padding: 0;
+                width: 20px;
+                height: 20px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            `;
+            closeBtn.onclick = () => errorDiv.remove();
+            errorDiv.appendChild(closeBtn);
+            
+            // Insert error message before the form
+            const form = document.getElementById('loginForm');
+            form.parentNode.insertBefore(errorDiv, form);
+            
+            // Auto-remove error message after 8 seconds
+            setTimeout(() => {
+                if (errorDiv && errorDiv.parentNode) {
+                    errorDiv.style.animation = 'slideOut 0.3s ease-out';
+                    setTimeout(() => {
+                        if (errorDiv.parentNode) {
+                            errorDiv.remove();
+                        }
+                    }, 300);
+                }
+            }, 8000);
+        }
 
-        // Input focus animations
+        // Input focus animations and validation
         document.querySelectorAll('.form-input').forEach(input => {
             input.addEventListener('focus', function() {
                 this.parentElement.classList.add('focused');
+                // Clear field error when user starts typing
+                clearFieldError(this.id);
             });
             
             input.addEventListener('blur', function() {
                 if (!this.value) {
                     this.parentElement.classList.remove('focused');
                 }
+                // Validate field on blur
+                validateField(this.id, this.value);
+            });
+            
+            input.addEventListener('input', function() {
+                // Clear field error when user starts typing
+                clearFieldError(this.id);
+                
+                // Real-time validation for email
+                if (this.id === 'email' && this.value.trim()) {
+                    if (!isValidEmail(this.value.trim())) {
+                        this.parentElement.classList.add('warning');
+                    } else {
+                        this.parentElement.classList.remove('warning');
+                    }
+                }
             });
         });
+        
+        // Function to validate individual field
+        function validateField(fieldId, value) {
+            if (fieldId === 'email' && value.trim()) {
+                if (!isValidEmail(value.trim())) {
+                    showFieldError(fieldId, 'Please enter a valid email address');
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        // Function to clear individual field error
+        function clearFieldError(fieldId) {
+            const field = document.getElementById(fieldId);
+            const wrapper = field.closest('.input-wrapper');
+            wrapper.classList.remove('error', 'warning');
+            
+            const errorMsg = wrapper.parentNode.querySelector('.field-error');
+            if (errorMsg) {
+                errorMsg.remove();
+            }
+        }
 
         // Animate elements on page load
         window.addEventListener('load', function() {
-            document.querySelector('.login-card').classList.add('animate-in');
-            document.querySelector('.demo-credentials').classList.add('animate-in');
+            try {
+                // Check for error messages in URL parameters
+                const urlParams = new URLSearchParams(window.location.search);
+                const error = urlParams.get('error');
+                
+                if (error) {
+                    let errorMessage = 'An error occurred. Please try again.';
+                    switch(error) {
+                        case 'expired':
+                            errorMessage = 'Your session has expired. Please login again.';
+                            break;
+                        case 'invalid':
+                            errorMessage = 'Invalid session. Please login again.';
+                            break;
+                        case 'invalid-token':
+                            errorMessage = 'Your session is invalid. Please login again.';
+                            break;
+                        case 'session-expired':
+                            errorMessage = 'Your session has expired. Please login again.';
+                            break;
+                        case 'auth-failed':
+                            errorMessage = 'Authentication failed. Please login again.';
+                            break;
+                        case 'user-not-found':
+                            errorMessage = 'User session not found. Please login again.';
+                            break;
+                        case 'account-deactivated':
+                            errorMessage = 'Your account has been deactivated. Please contact support.';
+                            break;
+                        default:
+                            errorMessage = 'Authentication error. Please login again.';
+                    }
+                    showError(errorMessage);
+                    
+                    // Clean URL by removing error parameter
+                    const newUrl = window.location.pathname;
+                    window.history.replaceState({}, document.title, newUrl);
+                }
+                
+                // Check if user is already authenticated
+                if (typeof AuthUtils !== 'undefined' && AuthUtils.isAuthenticated()) {
+                    // Validate token with server
+                    AuthUtils.validateToken()
+                        .then(isValid => {
+                            if (isValid) {
+                                window.location.href = '/chat';
+                            } else {
+                                // Token is invalid, clear stored data
+                                AuthUtils.clearAuthData();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Token validation error:', error);
+                            // Clear invalid auth data
+                            AuthUtils.clearAuthData();
+                        });
+                } else if (typeof AuthUtils === 'undefined') {
+                    console.warn('AuthUtils not loaded. Some features may not work correctly.');
+                }
+                
+                // Animate UI elements
+                const loginCard = document.querySelector('.login-card');
+                if (loginCard) {
+                    loginCard.classList.add('animate-in');
+                }
+                
+                const demoCredentials = document.querySelector('.demo-credentials');
+                if (demoCredentials) {
+                    demoCredentials.classList.add('animate-in');
+                }
+                
+            } catch (error) {
+                console.error('Error during page load:', error);
+                showError('Page failed to load completely. Please refresh and try again.');
+            }
+        });
+        
+        // Add global error handler for unhandled errors
+        window.addEventListener('error', function(event) {
+            console.error('Global error:', event.error);
+            showError('An unexpected error occurred. Please refresh the page and try again.');
+        });
+        
+        // Add handler for unhandled promise rejections
+        window.addEventListener('unhandledrejection', function(event) {
+            console.error('Unhandled promise rejection:', event.reason);
+            showError('An unexpected error occurred. Please try again.');
         });
     </script>
 </body>

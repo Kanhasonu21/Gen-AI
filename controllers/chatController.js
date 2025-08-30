@@ -18,9 +18,18 @@ class ChatController {
 
     // Chat page controller
     static getChat(req, res) {
+        // Check if user data is available (from authentication middleware)
+        const userData = req.user ? {
+            id: req.user._id,
+            firstName: req.user.firstName,
+            lastName: req.user.lastName,
+            email: req.user.email
+        } : null;
+
         res.render('chat', {
             title: 'AI Chatbot - iMessage Style (EJS)',
-            botName: 'AI Assistant'
+            botName: 'AI Assistant',
+            user: userData
         });
     }
 
@@ -39,14 +48,16 @@ class ChatController {
 
     // Socket connection handler
     static handleConnection(socket) {
-        console.log('User connected:', socket.id);
+        const userInfo = socket.user ? `${socket.user.firstName} ${socket.user.lastName} (${socket.user.email})` : socket.userId;
 
-        // Initialize chat history for this socket
-        ChatController.chatSessions.set(socket.id, [
-            new SystemMessage("You are a helpful AI Assistant. Respond in a friendly and informative way.")
-        ]);
+        // Initialize chat history for this socket with user context
+        const systemMessage = socket.user 
+            ? new SystemMessage(`You are a helpful AI Assistant. The user you're chatting with is ${socket.user.firstName} ${socket.user.lastName}. Respond in a friendly and informative way.`)
+            : new SystemMessage("You are a helpful AI Assistant. Respond in a friendly and informative way.");
+            
+        ChatController.chatSessions.set(socket.id, [systemMessage]);
 
-        // Send welcome message
+        // Send personalized welcome message
         ChatController.sendWelcomeMessage(socket);
 
         // Handle user messages
@@ -62,7 +73,8 @@ class ChatController {
 
     // Send welcome message
     static sendWelcomeMessage(socket) {
-        const welcomeText = 'Hello! I\'m your AI assistant powered by your chatbot function. How can I help you today?';
+        const userName = socket.user ? socket.user.firstName : 'there';
+        const welcomeText = `Hello ${userName}! I'm your AI assistant powered by your chatbot function. How can I help you today?`;
 
         socket.emit('bot_message', {
             text: welcomeText,
@@ -74,7 +86,7 @@ class ChatController {
     // Handle user message
     static async handleUserMessage(socket, message) {
         try {
-            console.log('Received message:', message);
+            const userInfo = socket.user ? `${socket.user.firstName} ${socket.user.lastName}` : socket.userId;
 
             // Echo user message
             socket.emit('user_message_echo', {
@@ -94,7 +106,6 @@ class ChatController {
             const humanMessage = new HumanMessage(message);
             chat_history.push(humanMessage);
 
-            console.log('Chat history length:', chat_history.length);
 
             // Get bot response
             const botResponse = await webChatBot(message, chat_history);
@@ -107,7 +118,6 @@ class ChatController {
             ChatController.chatSessions.set(socket.id, chat_history);
 
             const formattedResponse = formatMessage(botResponse);
-            console.log('Updated chat history length:', chat_history);
 
             // Send bot response with delay
             setTimeout(() => {
@@ -141,10 +151,43 @@ class ChatController {
 
     // Handle disconnect
     static handleDisconnect(socket) {
-        console.log('User disconnected:', socket.id);
+        const userInfo = socket.user ? `${socket.user.firstName} ${socket.user.lastName} (${socket.user.email})` : socket.userId;
+        console.log('User disconnected:', userInfo, '- Socket:', socket.id);
 
         // Clean up chat history for disconnected user
         ChatController.chatSessions.delete(socket.id);
+    }
+
+    // Example method showing how to access user data
+    static getUserChatHistory(req, res) {
+        try {
+            // User data is available in req.user (from middleware)
+            const user = req.user;
+            
+            // Example: Get user-specific data
+            const userInfo = {
+                id: user._id,
+                name: `${user.firstName} ${user.lastName}`,
+                email: user.email,
+                isActive: user.isActive,
+                lastLogin: user.lastLogin
+            };
+
+            res.status(200).json({
+                success: true,
+                message: 'User data retrieved successfully',
+                user: userInfo,
+                // You can add more user-specific data here
+                chatSessions: ChatController.chatSessions.size // Example of app-specific data
+            });
+
+        } catch (error) {
+            console.error('Error getting user chat history:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error'
+            });
+        }
     }
 }
 
